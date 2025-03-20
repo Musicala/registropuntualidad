@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Puntualidad</title>
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background-color: #F4F4F4;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        .header {
+            background: #3949AB;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .logo {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 100px;
+            height: auto;
+            z-index: 1000;
+            cursor: pointer;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: space-between;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        .filter-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        select {
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #CCC;
+            border-radius: 5px;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid #CCC;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background: #3949AB;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background: #F9F9F9;
+        }
+
+        tr:hover {
+            background: #DCE775;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        Registro de Puntualidad
+    </div>
+
+    <div class="container">
+        <div class="filters">
+            <div class="filter-group">
+                <label for="docenteFilter">Docente:</label>
+                <select id="docenteFilter">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Docente</th>
+                    <th>Hora de Ingreso</th>
+                    <th>Hora de Salida</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <img class="logo" src="https://static.wixstatic.com/media/85afce_3adb3865c88a492b93a8bf2dc69049c3~mv2.png" alt="Logo Musicala">
+
+    <script>
+        const urlTSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRPId9JdQIq7G3ci-ecPZWNMFSZSb9MGEb8EKBquXCsvUfUZWRfBgbGWNaJzAfQ3nIHJdXcjlsfLAaR/pub?gid=811348255&single=true&output=tsv";
+        let registros = [];
+
+        async function cargarTSV() {
+            try {
+                const response = await fetch(urlTSV);
+                const data = await response.text();
+                const filas = data.trim().split("\n").map(row => row.split("\t"));
+
+                console.log("Datos TSV cargados:", filas); // Depuración
+
+                if (filas.length < 2) {
+                    console.error("No hay suficientes filas en el TSV");
+                    return;
+                }
+
+                registros = filas.slice(1) // Omitimos la fila de encabezado
+                    .map(row => {
+                        if (row.length < 3) {
+                            console.warn("Fila con datos incompletos:", row);
+                            return null;
+                        }
+
+                        let fechaHoraIngreso = row[1].trim().split(" ");
+                        let fechaHoraSalida = row[2].trim().split(" ");
+
+                        return {
+                            docente: row[0].trim() || "Sin docente",
+                            fecha: fechaHoraIngreso[0] ? fechaHoraIngreso[0].split("/").reverse().join("-") : "Fecha no válida",
+                            ingreso: fechaHoraIngreso[1] || "Sin ingreso",
+                            salida: fechaHoraSalida[1] || "Sin salida"
+                        };
+                    })
+                    .filter(c => c && c.fecha !== "Fecha no válida");
+
+                console.log("Registros procesados:", registros); // Verifica si los datos son correctos
+
+                actualizarFiltros();
+                aplicarFiltros();
+            } catch (error) {
+                console.error("Error al cargar el TSV:", error);
+            }
+        }
+
+        function actualizarFiltros() {
+            const docenteSeleccionado = document.getElementById("docenteFilter").value;
+
+            let docentes = [...new Set(registros.map(c => c.docente))];
+
+            actualizarSelect("docenteFilter", docentes);
+        }
+
+        function actualizarSelect(id, valores) {
+            const select = document.getElementById(id);
+            const valorSeleccionado = select.value;
+            select.innerHTML = '<option value="">Todos</option>';
+            valores.forEach(valor => {
+                if (valor) {
+                    const option = document.createElement("option");
+                    option.value = valor;
+                    option.textContent = valor;
+                    select.appendChild(option);
+                }
+            });
+
+            if (valores.includes(valorSeleccionado)) {
+                select.value = valorSeleccionado;
+            } else {
+                select.value = "";
+            }
+        }
+
+        function aplicarFiltros() {
+            const docente = document.getElementById("docenteFilter").value;
+
+            actualizarFiltros();
+
+            const tableBody = document.getElementById("tableBody");
+            tableBody.innerHTML = "";
+
+            registros.filter(c => !docente || c.docente === docente).forEach(c => {
+                let row = document.createElement("tr");
+                row.innerHTML = `<td>${c.fecha}</td><td>${c.docente}</td><td>${c.ingreso}</td><td>${c.salida}</td>`;
+                tableBody.appendChild(row);
+            });
+        }
+
+        document.getElementById("docenteFilter").addEventListener("change", aplicarFiltros);
+
+        cargarTSV();
+    </script>
+</body>
+</html>
